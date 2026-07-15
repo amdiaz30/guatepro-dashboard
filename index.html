@@ -224,39 +224,70 @@ function renderFinanciero(){
 
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxwBBYa7uz5Ks81qZj8nxHNBKiyeKUxudbu7Igq1-kL8tR9CFwu8JQwQNArq9FMj_rw/exec';
 
-async function refreshData() {
+function mapRow(r) {
+  return {
+    'FECHA': String(r['FECHA']||'').trim(),
+    'NOMBRE CLIENTE': String(r['NOMBRE CLIENTE']||'').trim(),
+    'TELEFONO': String(r['TELÉFONO']||r['TELEFONO']||'').trim(),
+    'NUMERO GUIA': String(r['NÚMERO GUIA']||r['NUMERO GUIA']||'').trim(),
+    'ESTATUS': String(r['ESTATUS']||'').trim(),
+    'PRODUCTO': String(r['PRODUCTO']||'').trim(),
+    'DEPTO': String(r['DEPARTAMENTO DESTINO']||'').trim(),
+    'CIUDAD': String(r['CIUDAD DESTINO']||'').trim(),
+    'FECHA GUIA': String(r['FECHA GUIA GENERADA']||'').trim(),
+    'ULTIMO MOV': String(r['FECHA DE ÚLTIMO MOVIMIENTO']||r['FECHA DE ULTIMO MOVIMIENTO']||'').trim(),
+    'TOTAL': String(r['TOTAL DE LA ORDEN']||'').trim(),
+    'GANANCIA': String(r['GANANCIA']||'').trim(),
+    'FLETE': String(r['PRECIO FLETE']||'').trim(),
+    'FLETE DEV': String(r['COSTO DEVOLUCION FLETE']||'').trim(),
+    'COSTO PROD': String(r['PRECIO PROVEEDOR X CANTIDAD']||'').trim(),
+    'NOVEDAD': String(r['NOVEDAD']||'').trim(),
+  };
+}
+
+function refreshData() {
   const btn = document.getElementById('refreshBtn');
   const upd = document.getElementById('lastUpdate');
   if(btn){btn.textContent='&#8635; Cargando...';btn.disabled=true;}
-  try {
-    const res = await fetch(SHEET_URL);
-    if(!res.ok) throw new Error('Error HTTP ' + res.status);
-    const raw = await res.json();
-    allData = raw.map(r => ({
-      'FECHA': String(r['FECHA']||'').trim(),
-      'NOMBRE CLIENTE': String(r['NOMBRE CLIENTE']||'').trim(),
-      'TELEFONO': String(r['TELÉFONO']||r['TELEFONO']||'').trim(),
-      'NUMERO GUIA': String(r['NÚMERO GUIA']||r['NUMERO GUIA']||'').trim(),
-      'ESTATUS': String(r['ESTATUS']||'').trim(),
-      'PRODUCTO': String(r['PRODUCTO']||'').trim(),
-      'DEPTO': String(r['DEPARTAMENTO DESTINO']||'').trim(),
-      'CIUDAD': String(r['CIUDAD DESTINO']||'').trim(),
-      'FECHA GUIA': String(r['FECHA GUIA GENERADA']||'').trim(),
-      'ULTIMO MOV': String(r['FECHA DE ÚLTIMO MOVIMIENTO']||'').trim(),
-      'TOTAL': String(r['TOTAL DE LA ORDEN']||'').trim(),
-      'GANANCIA': String(r['GANANCIA']||'').trim(),
-      'FLETE': String(r['PRECIO FLETE']||'').trim(),
-      'FLETE DEV': String(r['COSTO DEVOLUCION FLETE']||'').trim(),
-      'COSTO PROD': String(r['PRECIO PROVEEDOR X CANTIDAD']||'').trim(),
-      'NOVEDAD': String(r['NOVEDAD']||'').trim(),
-    }));
-    if(upd) upd.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-GT');
-    renderResumen();renderLogistica();renderProductos();renderGeografico();renderFinanciero();
-  } catch(e) {
-    alert('Error al actualizar: ' + e.message + '\n\nVerifica que el Apps Script esté publicado correctamente.');
-    if(upd) upd.textContent = 'Error al actualizar';
-  }
-  if(btn){btn.textContent='&#8635; Actualizar';btn.disabled=false;}
+  
+  // Remove old script tag if exists
+  const old = document.getElementById('jsonp-script');
+  if(old) old.remove();
+  
+  // Define callback
+  window.__sheetCallback = function(raw) {
+    try {
+      allData = raw.map(mapRow);
+      if(upd) upd.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-GT');
+      renderResumen();renderLogistica();renderProductos();renderGeografico();renderFinanciero();
+    } catch(e) {
+      alert('Error procesando datos: ' + e.message);
+    }
+    if(btn){btn.textContent='&#8635; Actualizar';btn.disabled=false;}
+    const s = document.getElementById('jsonp-script');
+    if(s) s.remove();
+  };
+  
+  // Set timeout for error handling
+  const timer = setTimeout(function() {
+    if(btn){btn.textContent='&#8635; Actualizar';btn.disabled=false;}
+    alert('Error al actualizar: timeout. Verifica que el Apps Script esté publicado correctamente.');
+  }, 15000);
+  
+  window.__sheetCallbackWrapped = function(raw) {
+    clearTimeout(timer);
+    window.__sheetCallback(raw);
+  };
+  
+  const script = document.createElement('script');
+  script.id = 'jsonp-script';
+  script.src = SHEET_URL + '?callback=__sheetCallbackWrapped';
+  script.onerror = function() {
+    clearTimeout(timer);
+    if(btn){btn.textContent='&#8635; Actualizar';btn.disabled=false;}
+    alert('Error al cargar el script. Verifica tu conexión y que el Apps Script esté publicado.');
+  };
+  document.head.appendChild(script);
 }
 
 renderResumen();renderLogistica();renderProductos();renderGeografico();renderFinanciero();
